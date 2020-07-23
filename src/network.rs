@@ -196,6 +196,7 @@ pub fn poll(time_ms: i64) {
         {
             let mut socket = sockets.get::<TcpSocket>(NETWORK.tcp_handle.unwrap());
             if !socket.is_open() {
+                rtt_target::rprintln!("Listening with TCP socket on port {}", TCP_PORT);
                 socket.listen(TCP_PORT).unwrap();
             }
             if !socket.may_recv() && socket.may_send() {

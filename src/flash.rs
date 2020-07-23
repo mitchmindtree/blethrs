@@ -87,8 +87,8 @@ pub static DEFAULT_CONFIG: UserConfig = UserConfig {
     // Locally administered MAC
     magic: 0,
     mac_address: [0x02, 0x00, 0x01, 0x02, 0x03, 0x04],
-    ip_address: [10, 1, 1, 10],
-    ip_gateway: [10, 1, 1, 1],
+    ip_address: [169, 254, 141, 210],
+    ip_gateway: [169, 254, 141, 1],
     ip_prefix: 24,
     _padding: [0u8; 1],
     checksum: 0,

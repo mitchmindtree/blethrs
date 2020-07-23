@@ -7,7 +7,8 @@ authors = ["Adam Greig <adam@adamgreig.com>"]
 cortex-m = "0.6.2"
 cortex-m-rt = "0.6.12"
 cortex-m-semihosting = "0.3.5"
-panic-halt = "0.2.0"
+panic-rtt-target = { version = "0.1", features = ["cortex-m"] }
+rtt-target = { version = "0.2.0", features = ["cortex-m"] }
 ufmt = "0.1.0"
 
 [dependencies.smoltcp]

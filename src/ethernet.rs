@@ -254,7 +254,8 @@ impl EthernetDevice {
     }
 
     pub fn link_established(&mut self) -> bool {
-        return self.phy_poll_link()
+        true
+        //return self.phy_poll_link()
     }
 
     pub fn block_until_link(&mut self) {
@@ -371,6 +372,10 @@ impl EthernetDevice {
         let bcr = self.smi_read(0x00);
         let lpa = self.smi_read(0x05);
 
+        rtt_target::rprintln!("bsr: {:x}", bsr);
+        rtt_target::rprintln!("bcr: {:x}", bcr);
+        rtt_target::rprintln!("lpa: {:x}", lpa);
+
         // No link without autonegotiate
         if bcr & (1<<12) == 0 { return false; }
         // No link if link is down
@@ -445,8 +450,10 @@ impl<'a> phy::Device<'a> for EthernetDevice {
 
     fn receive(&mut self) -> Option<(RxToken, TxToken)> {
         if self.rdring.available() && self.tdring.available() {
+            //rtt_target::rprintln!("rdring && tdring available");
             Some((RxToken(self), TxToken(self)))
         } else {
+            //rtt_target::rprintln!("rdring {}, tdring {}", self.rdring.available(), self.tdring.available());
             None
         }
     }
