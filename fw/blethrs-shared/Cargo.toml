@@ -3,3 +3,7 @@ name = "blethrs-shared"
 version = "0.1.0"
 authors = ["mitchmindtree <mitchell.nordine@gmail.com>"]
 edition = "2018"
+
+[features]
+stm32f107 = []
+stm32f407 = []
