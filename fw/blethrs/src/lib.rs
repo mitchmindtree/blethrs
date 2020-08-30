@@ -15,6 +15,11 @@ pub use stm32f107 as stm32;
 #[cfg(feature = "stm32f407")]
 pub use stm32f407 as stm32;
 
+#[cfg(feature = "stm32f107")]
+pub use stm32f1xx_hal as hal;
+#[cfg(feature = "stm32f407")]
+pub use stm32f4xx_hal as hal;
+
 pub use blethrs_shared::Error;
 
 pub type Result<T> = core::result::Result<T, Error>;

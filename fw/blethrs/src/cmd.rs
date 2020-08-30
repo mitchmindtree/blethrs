@@ -31,6 +31,7 @@ fn send_status(socket: &mut TcpSocket, status: Error) {
 }
 
 /// Read device unique ID, return as array of 24 ASCII hex digits
+// TODO: Support stm32f107
 pub fn get_hex_id() -> [u8; 24] {
     static HEX_DIGITS: [u8; 16] = [
         48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
@@ -56,9 +57,7 @@ pub fn get_hex_id() -> [u8; 24] {
 
 /// Respond to the information request command with our build information.
 pub fn info(build_info: &BuildInfo, socket: &mut TcpSocket) {
-
     send_status(socket, Error::Success);
-
     socket.send_slice("blethrs ".as_bytes()).ok();
     socket.send_slice(build_info.pkg_version.as_bytes()).ok();
     socket.send_slice(" ".as_bytes()).ok();
@@ -67,9 +66,13 @@ pub fn info(build_info: &BuildInfo, socket: &mut TcpSocket) {
     socket.send_slice(build_info.built_time_utc.as_bytes()).ok();
     socket.send_slice("\r\nCompiler: ".as_bytes()).ok();
     socket.send_slice(build_info.rustc_version.as_bytes()).ok();
-    socket.send_slice("\r\nMCU ID: ".as_bytes()).ok();
-    socket.send_slice(&get_hex_id()).ok();
-    socket.send_slice("\r\n".as_bytes()).ok();
+    // TODO: Support stm32f107
+    #[cfg(feature = "stm32f407")]
+    {
+        socket.send_slice("\r\nMCU ID: ".as_bytes()).ok();
+        socket.send_slice(&get_hex_id()).ok();
+        socket.send_slice("\r\n".as_bytes()).ok();
+    }
 }
 
 pub fn read(socket: &mut TcpSocket) {
@@ -86,8 +89,12 @@ pub fn read(socket: &mut TcpSocket) {
 pub fn erase(socket: &mut TcpSocket) {
     let (adr, len) = read_adr_len(socket);
     match flash::erase(adr, len) {
-        Ok(()) => send_status(socket, Error::Success),
-        Err(err) => send_status(socket, err),
+        Ok(()) => {
+            send_status(socket, Error::Success);
+        }
+        Err(err) => {
+            send_status(socket, err);
+        }
     }
 }
 
