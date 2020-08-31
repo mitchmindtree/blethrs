@@ -3,5 +3,11 @@ rustflags = [
   "-C", "link-arg=-Tlink.x",
 ]
 
+[target.thumbv7m-none-eabi]
+rustflags = [
+  "-C", "link-arg=-Tlink.x",
+]
+
 [build]
-target = "thumbv7em-none-eabihf"
+#target = "thumbv7em-none-eabihf" # STM32F4
+target = "thumbv7m-none-eabi" # STM32F107

@@ -11,3 +11,7 @@ log = "0.4.11"
 
 [dev-dependencies]
 env_logger = "0.7.1"
+
+[features]
+stm32f107 = ["blethrs-shared/stm32f107"]
+stm32f407 = ["blethrs-shared/stm32f407"]

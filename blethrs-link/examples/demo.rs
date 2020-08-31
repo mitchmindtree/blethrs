@@ -1,5 +1,5 @@
 use blethrs_link as link;
-use blethrs_shared::{FLASH_CONFIG, FLASH_USER};
+use blethrs_shared::flash;
 use std::path::Path;
 use std::net::{SocketAddr, SocketAddrV4};
 
@@ -31,12 +31,12 @@ fn main() {
             let bin_path_s = args.next().expect("expected path to binary");
             let bin_path = Path::new(&bin_path_s);
             let chunk_size = CHUNK_SIZE;
-            let flash_addr = FLASH_USER;
+            let flash_addr = flash::USER;
             let bin_data = std::fs::read(&bin_path).unwrap();
             link::write_file(&addr, chunk_size, flash_addr, bin_data).unwrap();
         }
         "configure" => {
-            let cfg_flash_addr = FLASH_CONFIG;
+            let cfg_flash_addr = flash::CONFIG;
             // TODO: These are just for testing - take these via arguments.
             let ip = [10, 101, 0, 1];
             let mac = [0x00, 0x00, 0xAB, 0xCD, ip[2], ip[3]];

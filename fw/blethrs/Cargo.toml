@@ -11,8 +11,7 @@ cortex-m-rt = "0.6.12"
 smoltcp = { version = "0.6", default-features = false, features = ["proto-ipv4", "socket-tcp"] }
 stm32f4xx-hal = { version = "0.8.3", default-features = false, features = ["stm32f407", "rt"], optional = true }
 # TODO: Patch branch necessary for `rcc.cfgr.freeze_explicit`. Need to address this upstream.
-#stm32f1xx-hal = { version = "0.6.1", default-features = false, features = ["stm32f107", "rt"], optional = true }
-stm32f1xx-hal = { git = "https://github.com/mitchmindtree/stm32f1xx-hal", branch = "torkel-eth-rebased", default-features = false, features = ["stm32f107", "rt"], optional = true }
+stm32f1xx-hal = { version = "0.6.1", default-features = false, features = ["stm32f107", "rt"], optional = true }
 ufmt = { version = "0.1.0", optional = true }
 
 [features]
