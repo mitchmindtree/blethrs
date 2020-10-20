@@ -22,18 +22,24 @@ pub enum Error {
     }
 }
 
+// If we reconnect too quickly, the remote end will refuse to connect.
+const CONNECT_DELAY: Duration = Duration::from_millis(10);
+
 // Send the given command to the specified address via TCP and check the response.
 fn interact(addr: &SocketAddr, cmd_bytes: &[u8]) -> Result<Vec<u8>, Error> {
-    let timeout = Duration::from_secs(2);
-    let mut attempts = 3;
+    let timeout = Duration::from_secs(1);
+    let mut attempts = 5;
+    let mut attempt_delay = CONNECT_DELAY * 2;
     let mut s = loop {
         match TcpStream::connect_timeout(addr, timeout) {
             Ok(s) => break s,
             Err(e) => match e.kind() {
                 // Sometimes we get connection refused if the MCU is still busy.
-                io::ErrorKind::ConnectionRefused if attempts > 0 => {
+                io::ErrorKind::ConnectionRefused | io::ErrorKind::TimedOut if attempts > 0 => {
                     attempts -= 1;
-                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    log::warn!("Connect attempt failed due to {:?}: {} attempts remaining...", e, attempts);
+                    std::thread::sleep(attempt_delay);
+                    attempt_delay *= 2;
                 }
                 _ => return Err(Error::TcpConnect(e)),
             }
@@ -136,6 +142,7 @@ pub fn write_file(
         let start = seg_i * chunk_size;
         let end = std::cmp::min(start + chunk_size, data.len());
         let seg_data = &data[start..end];
+        std::thread::sleep(CONNECT_DELAY);
         write_cmd(socket_addr, seg_addr, seg_data)?;
         log::info!("  {:.2}%", ((seg_progress + 1) * 100) as f32 / segments as f32);
     }
@@ -146,6 +153,7 @@ pub fn write_file(
         let start = seg_i * chunk_size;
         let end = std::cmp::min(start + chunk_size, data.len());
         let seg_data = &data[start..end];
+        std::thread::sleep(CONNECT_DELAY);
         let r_data = read_cmd(socket_addr, seg_addr, chunk_size as u32)?;
         if seg_data != &r_data[..seg_data.len()] {
             for (i, (&wrote, &read)) in seg_data.iter().zip(&r_data).enumerate() {
@@ -205,9 +213,11 @@ pub fn write_config(
     erase_cmd(socket_addr, cfg_flash_addr, b.len() as u32)?;
 
     log::info!("Writing new configuration...");
+    std::thread::sleep(CONNECT_DELAY);
     write_cmd(socket_addr, cfg_flash_addr, &b)?;
 
     log::info!("Reading back new configuration...");
+    std::thread::sleep(CONNECT_DELAY);
     let r = read_cmd(socket_addr, cfg_flash_addr, b.len() as u32)?;
     if b != r {
         for (i, (&wrote, &read)) in b.iter().zip(&r).enumerate() {
