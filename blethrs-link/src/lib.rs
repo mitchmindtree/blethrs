@@ -80,10 +80,7 @@ fn interact(addr: &SocketAddr, cmd_bytes: &[u8]) -> Result<Vec<u8>, Error> {
     ).map_err(|err| err_tcp(TcpError::Connect, err))?;
 
     try_io(
-        || {
-            s.set_write_timeout(Some(TIMEOUT))?;
-            s.set_read_timeout(Some(TIMEOUT))
-        },
+        || s.set_write_timeout(Some(TIMEOUT)),
         |_| format!("[{}] Setting timeout failed", addr),
     ).map_err(|err| err_tcp(TcpError::SetTimeout, err))?;
 
@@ -93,13 +90,12 @@ fn interact(addr: &SocketAddr, cmd_bytes: &[u8]) -> Result<Vec<u8>, Error> {
     ).map_err(|err| err_tcp(TcpError::Write, err))?;
 
     let mut data = [0u8; 2048];
-    try_io(
+    if let Err(err) = try_io(
         || s.read_exact(&mut data[..]),
         |_| format!("[{}] Reading failed", addr),
-    ).map_err(|err| {
+    ) {
         log::warn!("[{}] Reading failed: {:?}", addr, err);
-        err_tcp(TcpError::Read, err)
-    }).ok();
+    }
 
     check_response(&data[..]).map(|data| data.to_vec())
 }
