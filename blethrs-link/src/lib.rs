@@ -9,7 +9,10 @@ use std::io::{self, Read, Write};
 #[derive(Debug)]
 pub enum Error {
     /// Failed to connect to the TCP socket.
-    TcpConnect(std::io::Error),
+    Tcp {
+        err: std::io::Error,
+        kind: TcpError,
+    },
     /// Error reported by the bootloader.
     Bootloader(blethrs_shared::Error),
     /// The received response was ill-formatted or contained an unexpected value.
@@ -22,32 +25,79 @@ pub enum Error {
     }
 }
 
+#[derive(Debug)]
+pub enum TcpError {
+    Connect,
+    SetTimeout,
+    Read,
+    Write,
+}
+
 // If we reconnect too quickly, the remote end will refuse to connect.
 const CONNECT_DELAY: Duration = Duration::from_millis(10);
+const ATTEMPT_DELAY: Duration = Duration::from_millis(20);
+// Timeout a connection attempt after a second in order to move onto the next attempt.
+const TIMEOUT: Duration = Duration::from_secs(1);
 
-// Send the given command to the specified address via TCP and check the response.
-fn interact(addr: &SocketAddr, cmd_bytes: &[u8]) -> Result<Vec<u8>, Error> {
-    let timeout = Duration::from_secs(1);
+// Try the given IO interaction multiple times before returning.
+fn try_io<F, T, E>(mut action: F, mut warn: E) -> Result<T, io::Error>
+where
+    F: FnMut() -> Result<T, io::Error>,
+    E: FnMut(&io::Error) -> String,
+{
     let mut attempts = 5;
-    let mut attempt_delay = CONNECT_DELAY * 2;
-    let mut s = loop {
-        match TcpStream::connect_timeout(addr, timeout) {
-            Ok(s) => break s,
+    let mut attempt_delay = ATTEMPT_DELAY;
+    loop {
+        match action() {
+            Ok(s) => break Ok(s),
             Err(e) => match e.kind() {
                 // Sometimes we get connection refused if the MCU is still busy.
-                io::ErrorKind::ConnectionRefused | io::ErrorKind::TimedOut if attempts > 0 => {
+                io::ErrorKind::ConnectionRefused
+                | io::ErrorKind::TimedOut
+                | io::ErrorKind::WouldBlock if attempts > 0 => {
                     attempts -= 1;
-                    log::warn!("Connect attempt failed due to {:?}: {} attempts remaining...", e, attempts);
+                    let warn = warn(&e);
+                    log::warn!("{}: \"{:?}\" {}: {} attempts remaining...", warn, e, e, attempts);
                     std::thread::sleep(attempt_delay);
                     attempt_delay *= 2;
                 }
-                _ => return Err(Error::TcpConnect(e)),
+                _ => return Err(e),
             }
         }
-    };
-    s.write(cmd_bytes).expect("failed to write command");
+    }
+}
+
+// Construct a TCP error.
+fn err_tcp(kind: TcpError, err: io::Error) -> Error {
+    Error::Tcp { kind, err }
+}
+
+// Send the given command to the specified address via TCP and check the response.
+fn interact(addr: &SocketAddr, cmd_bytes: &[u8]) -> Result<Vec<u8>, Error> {
+    let mut s = try_io(
+        || TcpStream::connect_timeout(addr, TIMEOUT),
+        |_| format!("[{}] Connection failed", addr),
+    ).map_err(|err| err_tcp(TcpError::Connect, err))?;
+
+    try_io(
+        || {
+            s.set_write_timeout(Some(TIMEOUT))?;
+            s.set_read_timeout(Some(TIMEOUT))
+        },
+        |_| format!("[{}] Setting timeout failed", addr),
+    ).map_err(|err| err_tcp(TcpError::SetTimeout, err))?;
+
+    try_io(
+        || s.write(cmd_bytes),
+        |_| format!("[{}] Writing failed", addr),
+    ).map_err(|err| err_tcp(TcpError::Write, err))?;
+
     let mut data = [0u8; 2048];
-    s.read_exact(&mut data[..]).ok();
+    try_io(
+        || s.read_exact(&mut data[..]),
+        |_| format!("[{}] Reading failed", addr),
+    ).map_err(|err| err_tcp(TcpError::Read, err))?;
+
     check_response(&data[..]).map(|data| data.to_vec())
 }
 
