@@ -2,17 +2,14 @@ use blethrs_shared::{Command, CONFIG_MAGIC};
 use crc::crc32::{self, Hasher32};
 use std::convert::TryFrom;
 use std::hash::Hasher;
+use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
-use std::io::{self, Read, Write};
 
 #[derive(Debug)]
 pub enum Error {
     /// Failed to connect to the TCP socket.
-    Tcp {
-        err: std::io::Error,
-        kind: TcpError,
-    },
+    Tcp { err: std::io::Error, kind: TcpError },
     /// Error reported by the bootloader.
     Bootloader(blethrs_shared::Error),
     /// The received response was ill-formatted or contained an unexpected value.
@@ -22,7 +19,7 @@ pub enum Error {
         flash_addr: u32,
         wrote: u8,
         read: u8,
-    }
+    },
 }
 
 #[derive(Debug)]
@@ -54,7 +51,9 @@ where
                 // Sometimes we get connection refused if the MCU is still busy.
                 io::ErrorKind::ConnectionRefused
                 | io::ErrorKind::TimedOut
-                | io::ErrorKind::WouldBlock if attempts > 0 => {
+                | io::ErrorKind::WouldBlock
+                    if attempts > 0 =>
+                {
                     attempts -= 1;
                     let warn = warn(&e);
                     log::warn!("{}: {:?}: {} attempts remaining...", warn, e, attempts);
@@ -62,7 +61,7 @@ where
                     attempt_delay *= 2;
                 }
                 _ => return Err(e),
-            }
+            },
         }
     }
 }
@@ -77,25 +76,27 @@ fn interact(addr: &SocketAddr, cmd_bytes: &[u8]) -> Result<Vec<u8>, Error> {
     let mut s = try_io(
         || TcpStream::connect_timeout(addr, TIMEOUT),
         |_| format!("[{}] Connection failed", addr),
-    ).map_err(|err| err_tcp(TcpError::Connect, err))?;
+    )
+    .map_err(|err| err_tcp(TcpError::Connect, err))?;
 
     try_io(
         || s.set_write_timeout(Some(TIMEOUT)),
         |_| format!("[{}] Setting timeout failed", addr),
-    ).map_err(|err| err_tcp(TcpError::SetTimeout, err))?;
+    )
+    .map_err(|err| err_tcp(TcpError::SetTimeout, err))?;
 
     try_io(
         || s.write(cmd_bytes),
         |_| format!("[{}] Writing failed", addr),
-    ).map_err(|err| err_tcp(TcpError::Write, err))?;
+    )
+    .map_err(|err| err_tcp(TcpError::Write, err))?;
 
     let mut data = [0u8; 2048];
-    if let Err(err) = try_io(
+    try_io(
         || s.read_exact(&mut data[..]),
         |_| format!("[{}] Reading failed", addr),
-    ) {
-        log::warn!("[{}] Reading failed: {:?}", addr, err);
-    }
+    )
+    .ok();
 
     check_response(&data[..]).map(|data| data.to_vec())
 }
@@ -185,7 +186,11 @@ pub fn write_file(
     log::info!("Erasing (may take a few seconds)...");
     erase_cmd(socket_addr, flash_addr, data.len() as u32)?;
 
-    log::info!("Writing {:.2}kB in {} segments...", data.len() as f32 / 1024.0, segments);
+    log::info!(
+        "Writing {:.2}kB in {} segments...",
+        data.len() as f32 / 1024.0,
+        segments
+    );
     for (seg_progress, seg_i) in (0..segments).rev().enumerate() {
         let seg_addr = flash_addr + (seg_i * chunk_size) as u32;
         let start = seg_i * chunk_size;
@@ -193,7 +198,10 @@ pub fn write_file(
         let seg_data = &data[start..end];
         std::thread::sleep(CONNECT_DELAY);
         write_cmd(socket_addr, seg_addr, seg_data)?;
-        log::info!("  {:.2}%", ((seg_progress + 1) * 100) as f32 / segments as f32);
+        log::info!(
+            "  {:.2}%",
+            ((seg_progress + 1) * 100) as f32 / segments as f32
+        );
     }
 
     log::info!("Writing completed successfully. Reading back...");
@@ -208,7 +216,11 @@ pub fn write_file(
             for (i, (&wrote, &read)) in seg_data.iter().zip(&r_data).enumerate() {
                 if wrote != read {
                     let flash_addr = seg_addr + i as u32;
-                    return Err(Error::ReadMismatch { flash_addr, wrote, read });
+                    return Err(Error::ReadMismatch {
+                        flash_addr,
+                        wrote,
+                        read,
+                    });
                 }
             }
         }
@@ -272,7 +284,11 @@ pub fn write_config(
         for (i, (&wrote, &read)) in b.iter().zip(&r).enumerate() {
             if wrote != read {
                 let flash_addr = cfg_flash_addr + i as u32;
-                return Err(Error::ReadMismatch { flash_addr, wrote, read });
+                return Err(Error::ReadMismatch {
+                    flash_addr,
+                    wrote,
+                    read,
+                });
             }
         }
     }
