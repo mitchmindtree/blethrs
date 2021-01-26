@@ -57,7 +57,7 @@ where
                 | io::ErrorKind::WouldBlock if attempts > 0 => {
                     attempts -= 1;
                     let warn = warn(&e);
-                    log::warn!("{}: \"{:?}\" {}: {} attempts remaining...", warn, e, e, attempts);
+                    log::warn!("{}: {:?}: {} attempts remaining...", warn, e, attempts);
                     std::thread::sleep(attempt_delay);
                     attempt_delay *= 2;
                 }
@@ -96,7 +96,10 @@ fn interact(addr: &SocketAddr, cmd_bytes: &[u8]) -> Result<Vec<u8>, Error> {
     try_io(
         || s.read_exact(&mut data[..]),
         |_| format!("[{}] Reading failed", addr),
-    ).map_err(|err| err_tcp(TcpError::Read, err))?;
+    ).map_err(|err| {
+        log::warn!("[{}] Reading failed: {:?}", addr, err);
+        err_tcp(TcpError::Read, err)
+    }).ok();
 
     check_response(&data[..]).map(|data| data.to_vec())
 }
